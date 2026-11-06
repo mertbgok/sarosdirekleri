@@ -11,6 +11,8 @@
 <link rel="apple-touch-icon" href="ikon.png">
 <link rel="icon" href="ikon.png">
 <title>Saros Pusula</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous" defer></script>
 <style>
 :root{
   --bg:#f4f1ea; --kart:#fffdf8; --yazi:#1b2025; --soluk:#5d666e; --cizgi:#d9d3c7;
@@ -48,6 +50,8 @@ h1{font-size:17px;margin:0;font-weight:650}
 #yonYazi{font-size:14px;color:var(--soluk);min-height:19px}
 .vardi #uzak{color:var(--iyi)}
 #uyari{width:100%;max-width:440px;font-size:14px;color:var(--soluk);text-align:center;min-height:20px;margin:2px 0 8px}
+#mod{font:inherit;font-weight:700;border:2px solid var(--vurgu);background:var(--kart);color:var(--yazi);border-radius:12px;
+  padding:10px 14px;width:100%;max-width:440px;margin-bottom:8px}
 #baslat{font:inherit;font-weight:650;background:var(--vurgu);color:#fff;border:none;border-radius:12px;padding:12px 18px;
   width:100%;max-width:440px;margin-bottom:10px}
 .kart{width:100%;max-width:440px;background:var(--kart);border:1px solid var(--cizgi);border-radius:14px;box-shadow:var(--golge);
@@ -61,6 +65,19 @@ h1{font-size:17px;margin:0;font-weight:650}
 .kart button{font:inherit;font-weight:650;border:1.5px solid var(--cizgi);background:transparent;color:var(--yazi);border-radius:10px;padding:8px 12px}
 .alt{width:100%;max-width:440px;display:flex;justify-content:space-between;margin-top:10px;font-size:14px}
 .alt a{color:var(--vurgu);font-weight:600;text-decoration:none}
+.sekme{display:flex;gap:6px;width:100%;max-width:440px;margin-top:8px}
+.sekme button{flex:1;font:inherit;font-weight:650;border:1.5px solid var(--cizgi);background:var(--kart);color:var(--yazi);border-radius:10px;padding:8px}
+.sekme button[aria-pressed=true]{border-color:var(--vurgu);color:var(--vurgu)}
+#haritaBolum{display:none;width:100%;max-width:440px;margin:8px 0}
+#haritaKutu{width:100%;height:58vh;border-radius:14px;border:1px solid var(--cizgi);background:#222}
+.haritada #haritaBolum{display:block}
+.haritada #pusula,.haritada #baslat{display:none}
+#haritaUst{white-space:pre-line;font-size:15px;font-weight:650;margin-bottom:6px;min-height:20px}
+.karoSatir{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--soluk)}
+.karoSatir button{font:inherit;font-weight:650;border:1.5px solid var(--cizgi);background:var(--kart);color:var(--yazi);border-radius:10px;padding:7px 10px}
+.karoSatir label{display:flex;gap:6px;align-items:center}
+.leaflet-tooltip.etk{background:rgba(0,0,0,.65);color:#fff;border:none;box-shadow:none;font-weight:700;font-size:11px;padding:0 3px}
+.leaflet-tooltip.etk:before{display:none}
 #veriYok{display:none;max-width:440px;text-align:center;margin-top:30vh}
 body.veriyok > :not(#veriYok){display:none}
 body.veriyok #veriYok{display:block}
@@ -71,6 +88,11 @@ body.veriyok #veriYok{display:block}
   <h1>Saros Pusula</h1>
   <div class="durum" id="gps">Konum bekleniyor…</div>
 </header>
+
+<div class="sekme" role="group" aria-label="Görünüm">
+  <button id="tPusula" aria-pressed="true">🧭 Pusula</button>
+  <button id="tHarita" aria-pressed="false">🗺 Harita</button>
+</div>
 
 <div class="seri" role="group" aria-label="Seri">
   <button id="sA" aria-pressed="true">A</button>
@@ -101,6 +123,18 @@ body.veriyok #veriYok{display:block}
   </div>
 </div>
 
+<div id="haritaBolum">
+  <div id="haritaUst"></div>
+  <div id="haritaKutu"></div>
+  <div class="karoSatir">
+    <button id="ortala">📍 Beni ortala</button>
+    <button id="karoIndir">⬇️ Uydu haritasını indir (Wi-Fi)</button>
+    <label><input type="checkbox" id="karoNet"> Eksik haritayı internetten al</label>
+    <span id="karoDurum"></span>
+  </div>
+</div>
+
+<button id="mod"></button>
 <div id="uyari"></div>
 <button id="baslat">🧭 Pusulayı başlat</button>
 
@@ -145,6 +179,8 @@ function oku() {
       });
       if (pts.length && pts.every(p => isFinite(p.lat) && isFinite(p.lon))) {
         try { localStorage.setItem("saros_direkler", JSON.stringify(pts)); } catch (e) {}
+        const y = location.hash.match(/[#&]y=([^&]*)/);
+        try { localStorage.setItem("saros_yollar", y ? y[1] : ""); } catch (e) {}
         history.replaceState(null, "", location.pathname + location.search);
         return pts;
       }
@@ -153,6 +189,29 @@ function oku() {
   try { return JSON.parse(localStorage.getItem("saros_direkler")) || []; } catch (e) { return []; }
 }
 const DIREK = oku();
+
+// ---- kayıtlı direk yolları (bot linkiyle gelir): bas.nokta.giris.maliyet.iz
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+function izCoz(k) {
+  const sayilar = []; let v = 0, kay = 0;
+  for (const c of k) {
+    const n = B64.indexOf(c);
+    v |= (n & 31) << kay;
+    if (n & 32) { kay += 5; continue; }
+    sayilar.push(v & 1 ? -((v + 1) >> 1) : v >> 1); v = 0; kay = 0;
+  }
+  const pts = []; let a = 0, o = 0;
+  for (let i = 0; i + 1 < sayilar.length; i += 2) { a += sayilar[i]; o += sayilar[i + 1]; pts.push([a / 1e5, o / 1e5]); }
+  return pts;
+}
+const YOLLAR = (() => {
+  let ham = "";
+  try { ham = localStorage.getItem("saros_yollar") || ""; } catch (e) {}
+  return ham.split("~").filter(Boolean).map(x => {
+    const [bas, nokta, giris, maliyet, iz] = x.split(".");
+    return {bas: bas === "x" ? null : +bas, nokta: +nokta, giris: +giris, maliyet: +maliyet, pts: izCoz(iz || "")};
+  }).filter(y => y.pts.length > 1 && DIREK[y.nokta]);
+})();
 // sayfa açıkken yeni link gelirse listeyi yeniden oku
 addEventListener("hashchange", () => { if (/[#&]d=/.test(location.hash)) location.reload(); });
 if (!DIREK.length) document.body.classList.add("veriyok");
@@ -197,6 +256,115 @@ const taraf = p => { const e = esi(p); return e ? (p.lon > e.lon ? "doğu" : "ba
 const bulunma = w => w + (/[aıou][^aeıioöuü]*$/.test(w) ? "da" : "de");
 const mYaz = m => m < 1000 ? Math.round(m / (m < 100 ? 1 : 5)) * (m < 100 ? 1 : 5) + " m" : (m / 1000).toFixed(2).replace(".", ",") + " km";
 
+// ---- kayıtlı yoldan plan: bulunulan direkten (150 m) ya da asfalt girişlerinden hedefe (Dijkstra)
+function yolBul(nereden, hi) {
+  const komsu = {};
+  for (const y of YOLLAR) {
+    if (y.bas === null || y.bas === y.nokta) continue;
+    (komsu[y.bas] = komsu[y.bas] || []).push([y.nokta, y, false]);
+    (komsu[y.nokta] = komsu[y.nokta] || []).push([y.bas, y, true]);
+  }
+  let sira = [];
+  if (nereden === "hepsi") {  // yolun ortasındayken: her direkten başla, uzaklık kadar ceza
+    for (const k in komsu) if (+k !== hi) sira.push([mesafe(konum, DIREK[k]) * 1.5, +k, [], +k]);
+  } else if (nereden !== null) sira.push([0, nereden, [], nereden]);
+  if (nereden === null || nereden === "hepsi") for (const y of YOLLAR) if (y.bas === null) {
+    const g = y.pts[y.giris] || y.pts[0];
+    sira.push([(konum ? mesafe(konum, {lat: g[0], lon: g[1]}) * 1.3 : 0) + y.maliyet, y.nokta, [[y, false]], null]);
+  }
+  const goruldu = new Set();
+  while (sira.length) {
+    sira.sort((a, b) => a[0] - b[0]);
+    const [m, n, adim, bas] = sira.shift();
+    if (goruldu.has(n)) continue;
+    goruldu.add(n);
+    if (n === hi) return adim.length ? {adim, bas} : null;
+    for (const [v, y, ters] of komsu[n] || []) if (!goruldu.has(v)) sira.push([m + y.maliyet, v, adim.concat([[y, ters]]), bas]);
+  }
+  return null;
+}
+function xy(p, o) { return [(p[1] - o[1]) * 111320 * Math.cos(o[0] * R), (p[0] - o[0]) * 110540]; }
+function planYap() {
+  const hi = DIREK.indexOf(hedef);
+  let nereden = null, en = 151;
+  DIREK.forEach((p, i) => { const d = mesafe(konum, p); if (d < en && i !== hi) { en = d; nereden = i; } });
+  let bul = nereden !== null ? yolBul(nereden, hi) : null;
+  if (!bul) bul = yolBul(null, hi);
+  if (!bul) bul = yolBul("hepsi", hi);
+  if (!bul) return null;
+  const adim = bul.adim; nereden = bul.bas;
+  let iz = [], asfalt = false;
+  for (const [y, ters] of adim) {
+    let p = y.bas === null ? y.pts.slice(y.giris) : y.pts.slice();
+    if (y.bas === null) asfalt = true;
+    if (ters) p.reverse();
+    iz = iz.concat(p);
+  }
+  if (nereden !== null) iz.unshift([DIREK[nereden].lat, DIREK[nereden].lon]);
+  iz.push([hedef.lat, hedef.lon]);
+  const o = iz[0], m = [0];
+  for (let i = 1; i < iz.length; i++) { const a = xy(iz[i - 1], o), b = xy(iz[i], o); m.push(m[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  const duraklar = (nereden !== null ? [DIREK[nereden].ad] : ["tarla girişi"]).concat(adim.map(([y, t]) => DIREK[t ? y.bas : y.nokta].ad));
+  return {hedef, iz, m, toplam: m[m.length - 1], asfalt, duraklar};
+}
+// izde en yakın yer: s = baştan metre, off = izden uzaklık
+function izdeYer(P) {
+  const o = [konum.lat, konum.lon];
+  let en = {off: Infinity, s: 0};
+  for (let i = 1; i < P.iz.length; i++) {
+    const a = xy(P.iz[i - 1], o), b = xy(P.iz[i], o), dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1e-9;
+    const t = Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dy) / L)), d = Math.hypot(a[0] + t * dx, a[1] + t * dy);
+    if (d < en.off) en = {off: d, s: P.m[i - 1] + t * (P.m[i] - P.m[i - 1]), i};
+  }
+  return en;
+}
+function izdeNokta(P, s) {
+  s = Math.min(Math.max(s, 0), P.toplam);
+  for (let i = 1; i < P.m.length; i++) if (P.m[i] >= s) {
+    const t = (s - P.m[i - 1]) / ((P.m[i] - P.m[i - 1]) || 1), a = P.iz[i - 1], b = P.iz[i];
+    return {lat: a[0] + t * (b[0] - a[0]), lon: a[1] + t * (b[1] - a[1])};
+  }
+  const z = P.iz[P.iz.length - 1]; return {lat: z[0], lon: z[1]};
+}
+let PLAN = null, planZamani = 0, sonOff = 0;
+function planGuncelle() {
+  const simdi = Date.now();
+  const yeniHedef = !PLAN || PLAN.hedef !== hedef;
+  if (yeniHedef) sonOff = 0;
+  if (yeniHedef || (sonOff > 150 && simdi - planZamani > 10000) || (PLAN.yok && simdi - planZamani > 15000)) {
+    PLAN = YOLLAR.length ? planYap() : null; planZamani = simdi;
+    if (PLAN === null) PLAN = {hedef, yok: true};
+    haritaPlan();
+  }
+  return PLAN.yok ? null : PLAN;
+}
+// okun göstereceği yer ve yazı
+let yolModu = true;
+try { yolModu = localStorage.getItem("saros_mod") !== "kus"; } catch (e) {}
+let girisNoktasi = null;  // asfalttayken Google Maps tarla girişine götürür
+function rehber(d) {
+  const P = planGuncelle();
+  girisNoktasi = null;
+  if (!yolModu) { const b = kerteriz(konum, hedef); return {b, kalan: d, yazi: yonAdi(b) + " · kuş uçuşu"}; }
+  if (!P) {
+    const b = kerteriz(konum, hedef);
+    return {b, kalan: d, yazi: yonAdi(b) + " · kuş uçuşu" + (YOLLAR.length ? " (kayıtlı yol yok)" : "")};
+  }
+  const t = izdeYer(P); sonOff = t.off;
+  if (P.asfalt && t.off > 150) {  // henüz tarlaya girmemiş: önce girişe
+    const g = {lat: P.iz[0][0], lon: P.iz[0][1]}, dg = mesafe(konum, g), b = kerteriz(konum, g);
+    girisNoktasi = g;
+    return {b, kalan: dg + P.toplam, yazi: "önce tarla girişine · " + mYaz(dg) + " (Maps ile gidin)"};
+  }
+  if (t.off > 40) {
+    const n = izdeNokta(P, t.s), b = kerteriz(konum, n);
+    const giriste = P.asfalt && t.s < 5;
+    return {b, kalan: t.off + P.toplam - t.s, yazi: (giriste ? "tarla girişine git · " : "⚠️ yola dön · ") + mYaz(t.off) + " " + yonAdi(b)};
+  }
+  const b = kerteriz(konum, izdeNokta(P, t.s + 20));
+  return {b, kalan: P.toplam - t.s, yazi: "kayıtlı yol · " + yonAdi(b)};
+}
+
 // ---- durum
 let konum = null, baslik = null, hedef = null, sonYon = 0;
 
@@ -238,17 +406,7 @@ for (const [id, v] of [["sA", "A"], ["sB", "B"], ["sP", "P"]]) $(id).addEventLis
   if (v === "P") { $("giris").value = ""; hedefSec(DIREK.find(p => p.ad === "A-PORTAL")); }
   else girisDegisti();
 });
-$("yakinSec").addEventListener("click", () => {
-  const y = enYakin();
-  if (!y) return;
-  const p = y.p, m = p.ad.match(/^([AB])-(\d+)$/), mm = p.ad.match(/(\d+)(?:\/([AB]))?$/);
-  if (p.ad.endsWith("PORTAL")) { seri = "P"; $("giris").value = ""; }
-  else if (m) { seri = m[1]; $("giris").value = m[2]; }
-  else { seri = mm[2] || (+mm[1] >= 87 ? "B" : "A"); $("giris").value = mm[1]; }
-  try { localStorage.setItem("saros_seri", seri); } catch (e) {}
-  seriGoster();
-  hedefSec(p);
-});
+$("yakinSec").addEventListener("click", () => { const y = enYakin(); if (y) secAd(y.p); });
 
 function enYakin() {
   if (!konum || !DIREK.length) return null;
@@ -264,15 +422,18 @@ function ciz() {
   $("hedefAd").textContent = hedef ? hedef.ad + (taraf(hedef) ? " · " + taraf(hedef) + "daki" : "") : "";
   document.body.classList.remove("vardi");
   if (hedef && konum) {
-    const d = mesafe(konum, hedef), b = kerteriz(konum, hedef);
+    const d = mesafe(konum, hedef), r = d <= VARDI_M ? {b: kerteriz(konum, hedef), kalan: d, yazi: ""} : rehber(d), b = r.b;
     // en kısa yoldan dönsün diye açıyı biriktir
     let hedefAci = b - h, fark = ((hedefAci - sonYon) % 360 + 540) % 360 - 180;
     sonYon += fark;
     $("ok").style.display = "";
     $("ok").style.transform = `rotate(${sonYon}deg)`;
-    $("uzak").textContent = mYaz(d);
+    $("uzak").textContent = mYaz(r.kalan);
+    const mh = girisNoktasi || hedef;
+    $("harita").href = `https://www.google.com/maps/dir/?api=1&destination=${mh.lat.toFixed(6)},${mh.lon.toFixed(6)}&travelmode=${girisNoktasi ? "driving" : "walking"}`;
+    $("harita").textContent = girisNoktasi ? "Tarla girişine Google Maps ↗" : "Google Maps ↗";
     if (d <= VARDI_M) { document.body.classList.add("vardi"); $("yonYazi").textContent = "✅ Vardınız"; }
-    else $("yonYazi").textContent = yonAdi(b) + " · " + Math.round(b) + "°";
+    else $("yonYazi").textContent = r.yazi;
   } else {
     $("ok").style.display = "none";
     $("uzak").textContent = hedef ? "…" : "";
@@ -296,7 +457,122 @@ function ciz() {
   if (baslik === null) u = konum ? "Pusula yok: kırmızı K harfini kuzeye göre okuyun." : "";
   else if (konum && konum.acc > 25 && hedef && mesafe(konum, hedef) < konum.acc * 1.5) u = "GPS kaba (±" + Math.round(konum.acc) + " m): yön yakında şaşabilir.";
   $("uyari").textContent = u;
+  haritaGuncelle();
 }
+
+// ---- harita (uydu karoları telefonda saklanır; "indir" ile bir kez Wi-Fi'de alınır)
+const KARO = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
+let HARITA = null, karoKatman = null, planCizgi = null, ben = null, benHalka = null, ortalaAcik = true;
+let karoNet = false;
+try { karoNet = localStorage.getItem("saros_karonet") === "1"; } catch (e) {}
+$("karoNet").checked = karoNet;
+function karoAdresi() { return KARO + "{z}/{y}/{x}" + (karoNet ? "" : "?o=1"); }
+function haritaKur() {
+  if (HARITA) return;
+  if (!window.L) { $("haritaUst").textContent = "Harita yüklenemedi (ilk açılışta internet gerekir)."; return; }
+  HARITA = L.map("haritaKutu", {zoomControl: false, minZoom: 12, maxZoom: 19});
+  HARITA.attributionControl.setPrefix("");
+  karoKatman = L.tileLayer(karoAdresi(), {maxNativeZoom: 17, maxZoom: 19, crossOrigin: true, attribution: "Esri uydu"}).addTo(HARITA);
+  for (const y of YOLLAR) L.polyline(y.pts, {color: "#ffd54f", weight: 3, opacity: .85}).addTo(HARITA);
+  planCizgi = L.polyline([], {color: "#ff6a3d", weight: 7, opacity: .95}).addTo(HARITA);
+  for (const p of DIREK) {
+    const kisa = p.ad.replace(/^([AB])-PORTAL$/, "P$1").replace(/^MEV\.D\./, "").replace(/^YENI D\.86\//, "86");
+    L.circleMarker([p.lat, p.lon], {radius: 5, weight: 2, color: "#fff", fillColor: p.ad.startsWith("B") || p.ad.endsWith("/B") || /8[789]$/.test(p.ad) ? "#f06292" : "#4fc3f7", fillOpacity: 1})
+      .bindTooltip(kisa, {permanent: true, direction: "right", className: "etk", offset: [5, 0]}).addTo(HARITA)
+      .on("click", () => secAd(p));
+  }
+  benHalka = L.circle([0, 0], {radius: 1, color: "#2196f3", weight: 1, fillOpacity: .12, interactive: false});
+  ben = L.circleMarker([0, 0], {radius: 8, color: "#fff", weight: 3, fillColor: "#2196f3", fillOpacity: 1, interactive: false});
+  HARITA.fitBounds(L.latLngBounds(DIREK.map(p => [p.lat, p.lon])).pad(0.05));
+  HARITA.on("dragstart", () => { ortalaAcik = false; });
+  haritaPlan();
+}
+function haritaPlan() {
+  if (!planCizgi) return;
+  planCizgi.setLatLngs(PLAN && !PLAN.yok ? PLAN.iz : []);
+}
+function haritaGuncelle() {
+  let ust = hedef ? hedef.ad : "Hedef seçilmedi (Pusula sekmesinde numara yazın)";
+  if (hedef && konum) ust += " · " + $("uzak").textContent + " · " + $("yonYazi").textContent;
+  if (PLAN && !PLAN.yok && hedef) ust += "\nYol: " + PLAN.duraklar.join(" → ");
+  $("haritaUst").textContent = ust;
+  if (!HARITA || !konum) return;
+  ben.setLatLng([konum.lat, konum.lon]).addTo(HARITA);
+  benHalka.setLatLng([konum.lat, konum.lon]).setRadius(konum.acc || 1).addTo(HARITA);
+  if (ortalaAcik) HARITA.setView([konum.lat, konum.lon], Math.max(HARITA.getZoom(), 16), {animate: false});
+}
+function secAd(p) {
+  const m = p.ad.match(/^([AB])-(\d+)$/), mm = p.ad.match(/(\d+)(?:\/([AB]))?$/);
+  if (p.ad.endsWith("PORTAL")) { seri = "P"; $("giris").value = ""; }
+  else if (m) { seri = m[1]; $("giris").value = m[2]; }
+  else { seri = mm[2] || (+mm[1] >= 87 ? "B" : "A"); $("giris").value = mm[1]; }
+  try { localStorage.setItem("saros_seri", seri); } catch (e) {}
+  seriGoster();
+  hedefSec(p);
+}
+function gorunum(harita) {
+  document.body.classList.toggle("haritada", harita);
+  $("tPusula").setAttribute("aria-pressed", !harita);
+  $("tHarita").setAttribute("aria-pressed", harita);
+  try { localStorage.setItem("saros_gorunum", harita ? "h" : "p"); } catch (e) {}
+  if (harita) { haritaKur(); if (HARITA) setTimeout(() => { HARITA.invalidateSize(); haritaGuncelle(); }, 50); }
+}
+function modYaz() {
+  $("mod").textContent = yolModu ? "🛤 Kayıtlı yolu izliyor · kuş uçuşuna geç" : "🧭 Kuş uçuşu gösteriyor · kayıtlı yola geç";
+}
+$("mod").addEventListener("click", () => {
+  yolModu = !yolModu;
+  try { localStorage.setItem("saros_mod", yolModu ? "yol" : "kus"); } catch (e) {}
+  modYaz(); ciz();
+});
+modYaz();
+$("tPusula").addEventListener("click", () => gorunum(false));
+$("tHarita").addEventListener("click", () => gorunum(true));
+$("ortala").addEventListener("click", () => { ortalaAcik = true; haritaGuncelle(); });
+$("karoNet").addEventListener("change", e => {
+  karoNet = e.target.checked;
+  try { localStorage.setItem("saros_karonet", karoNet ? "1" : "0"); } catch (err) {}
+  if (karoKatman) karoKatman.setUrl(karoAdresi());
+});
+// direklerin ve kayıtlı yolların 300 m çevresindeki karolar, yakınlık 13-17
+function karoListesi() {
+  const noktalar = DIREK.map(p => [p.lat, p.lon]);
+  for (const y of YOLLAR) noktalar.push(...y.pts);
+  const set = new Set();
+  for (let z = 13; z <= 17; z++) {
+    const n = 2 ** z;
+    for (const [la, lo] of noktalar) {
+      const x1 = Math.floor((lo - .0036 + 180) / 360 * n), x2 = Math.floor((lo + .0036 + 180) / 360 * n);
+      const ty = l => Math.floor((1 - Math.log(Math.tan(l * R) + 1 / Math.cos(l * R)) / Math.PI) / 2 * n);
+      const y1 = ty(la + .0027), y2 = ty(la - .0027);
+      for (let x = x1; x <= x2; x++) for (let y = y1; y <= y2; y++) set.add(z + "/" + y + "/" + x);
+    }
+  }
+  return [...set];
+}
+$("karoIndir").addEventListener("click", async () => {
+  if (!("caches" in window)) { $("karoDurum").textContent = "Bu tarayıcı haritayı saklayamıyor."; return; }
+  const btn = $("karoIndir"); btn.disabled = true;
+  const liste = karoListesi(), kutu = await caches.open("saros-karo");
+  let bitti = 0, bayt = 0, hata = 0, atla = 0;
+  const yaz = () => { $("karoDurum").textContent = `${bitti}/${liste.length} · ${(bayt / 1048576).toFixed(1).replace(".", ",")} MB` + (hata ? ` · ${hata} hata` : ""); };
+  const is = async () => {
+    while (sira < liste.length) {
+      const k = liste[sira++], url = KARO + k;
+      try {
+        if (await kutu.match(url)) atla++;
+        else { const r = await fetch(url, {mode: "cors"}); if (!r.ok) throw 0; const b = await r.blob(); bayt += b.size; await kutu.put(url, new Response(b, {headers: {"Content-Type": "image/jpeg"}})); }
+      } catch (e) { hata++; }
+      bitti++; yaz();
+    }
+  };
+  let sira = 0; const calisan = [];
+  for (let i = 0; i < 4; i++) calisan.push(is());
+  await Promise.all(calisan);
+  $("karoDurum").textContent = `Hazır: ${liste.length - hata} parça` + (atla ? ` (${atla} zaten vardı)` : "") + ` · ${(bayt / 1048576).toFixed(1).replace(".", ",")} MB indi` + (hata ? ` · ${hata} hata, tekrar basın` : "");
+  btn.disabled = false;
+  if (karoKatman) karoKatman.redraw();
+});
 
 // ---- konum
 function konumBaslat() {
@@ -359,6 +635,7 @@ if (DIREK.length) {
     hedefSec(p);
   }
   konumBaslat();
+  addEventListener("load", () => { let g = null; try { g = localStorage.getItem("saros_gorunum"); } catch (e) {} if (g === "h") gorunum(true); });
   // Android'de izin istemeden çalışır; iOS düğmeye basılmasını bekler
   if (typeof DeviceOrientationEvent === "undefined" || typeof DeviceOrientationEvent.requestPermission !== "function") pusulaBaslat();
   ciz();
