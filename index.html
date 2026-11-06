@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#10161c">
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pusula">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="ikon.png">
+<link rel="icon" href="ikon.png">
+<title>Saros Pusula</title>
+<style>
+:root{
+  --bg:#f4f1ea; --kart:#fffdf8; --yazi:#1b2025; --soluk:#5d666e; --cizgi:#d9d3c7;
+  --vurgu:#d2401f; --kuzey:#c62828; --iyi:#2e7d32; --kadran:#ffffff; --golge:0 1px 3px rgba(0,0,0,.12);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#10161c; --kart:#1a222a; --yazi:#eef1f3; --soluk:#9aa6b0; --cizgi:#2e3943;
+        --vurgu:#ff6a3d; --kuzey:#ff5252; --iyi:#66bb6a; --kadran:#141c23; --golge:none}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--yazi);font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  display:flex;flex-direction:column;align-items:center;
+  padding:calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 12px);
+  overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+header{width:100%;max-width:440px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+h1{font-size:17px;margin:0;font-weight:650}
+.durum{font-size:13px;color:var(--soluk);text-align:right}
+.seri{display:flex;gap:6px;margin:10px 0 6px}
+.seri button{font:inherit;font-weight:650;border:1.5px solid var(--cizgi);background:var(--kart);color:var(--yazi);
+  border-radius:999px;padding:7px 18px;min-width:56px}
+.seri button[aria-pressed=true]{background:var(--yazi);color:var(--bg);border-color:var(--yazi)}
+#pusula{position:relative;width:min(88vw,380px);aspect-ratio:1;margin:6px 0}
+#pusula svg{position:absolute;inset:0;width:100%;height:100%}
+#kadran{transition:transform .12s linear}
+#ok{transition:transform .12s linear}
+.orta{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:52%;
+  display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+#giris{width:100%;font-family:inherit;font-size:44px;font-weight:700;line-height:1.1;text-align:center;border:none;border-bottom:2px solid var(--cizgi);
+  background:transparent;color:var(--yazi);padding:2px 0;outline:none;border-radius:0}
+#giris:focus{border-bottom-color:var(--vurgu)}
+#giris::placeholder{color:var(--cizgi);font-weight:600}
+#hedefAd{font-size:14px;color:var(--soluk);min-height:19px;font-weight:600}
+#uzak{font-size:30px;font-weight:750;font-variant-numeric:tabular-nums;min-height:38px}
+#yonYazi{font-size:14px;color:var(--soluk);min-height:19px}
+.vardi #uzak{color:var(--iyi)}
+#uyari{width:100%;max-width:440px;font-size:14px;color:var(--soluk);text-align:center;min-height:20px;margin:2px 0 8px}
+#baslat{font:inherit;font-weight:650;background:var(--vurgu);color:#fff;border:none;border-radius:12px;padding:12px 18px;
+  width:100%;max-width:440px;margin-bottom:10px}
+.kart{width:100%;max-width:440px;background:var(--kart);border:1px solid var(--cizgi);border-radius:14px;box-shadow:var(--golge);
+  padding:12px 14px;display:flex;align-items:center;gap:12px}
+.kart .etiket{font-size:12px;color:var(--soluk);text-transform:uppercase;letter-spacing:.04em}
+.kart .ad{font-size:22px;font-weight:750}
+.kart .bilgi{font-size:15px;color:var(--soluk);font-variant-numeric:tabular-nums}
+.kart svg{flex:none;width:44px;height:44px}
+.kart .bos{flex:1}
+.kart button{font:inherit;font-weight:650;border:1.5px solid var(--cizgi);background:transparent;color:var(--yazi);border-radius:10px;padding:8px 12px}
+.alt{width:100%;max-width:440px;display:flex;justify-content:space-between;margin-top:10px;font-size:14px}
+.alt a{color:var(--vurgu);font-weight:600;text-decoration:none}
+#veriYok{display:none;max-width:440px;text-align:center;margin-top:30vh}
+body.veriyok > :not(#veriYok){display:none}
+body.veriyok #veriYok{display:block}
+</style>
+</head>
+<body>
+<header>
+  <h1>Saros Pusula</h1>
+  <div class="durum" id="gps">Konum bekleniyor…</div>
+</header>
+
+<div class="seri" role="group" aria-label="Seri">
+  <button id="sA" aria-pressed="true">A</button>
+  <button id="sB" aria-pressed="false">B</button>
+  <button id="sP" aria-pressed="false">PORTAL</button>
+</div>
+
+<div id="pusula">
+  <svg viewBox="-100 -100 200 200" aria-hidden="true">
+    <g id="kadran">
+      <circle r="96" fill="var(--kadran)" stroke="var(--cizgi)" stroke-width="2"/>
+      <g id="cizikler"></g>
+      <text y="-74" text-anchor="middle" font-size="15" font-weight="800" fill="var(--kuzey)">K</text>
+      <text x="76" y="5" text-anchor="middle" font-size="12" font-weight="700" fill="var(--soluk)">D</text>
+      <text y="84" text-anchor="middle" font-size="12" font-weight="700" fill="var(--soluk)">G</text>
+      <text x="-76" y="5" text-anchor="middle" font-size="12" font-weight="700" fill="var(--soluk)">B</text>
+    </g>
+    <path d="M0,-99 L-6,-89 L6,-89 Z" fill="var(--soluk)"/>
+    <g id="ok" style="display:none">
+      <path d="M0,-98 L-13,-70 L0,-76 L13,-70 Z" fill="var(--vurgu)" stroke="var(--kadran)" stroke-width="1.5"/>
+    </g>
+  </svg>
+  <div class="orta">
+    <input id="giris" inputmode="numeric" autocomplete="off" enterkeyhint="go" placeholder="No" aria-label="Direk numarası">
+    <div id="hedefAd"></div>
+    <div id="uzak"></div>
+    <div id="yonYazi"></div>
+  </div>
+</div>
+
+<div id="uyari"></div>
+<button id="baslat">🧭 Pusulayı başlat</button>
+
+<div class="kart" id="yakinKart">
+  <svg viewBox="-24 -24 48 48" aria-hidden="true">
+    <circle r="22" fill="none" stroke="var(--cizgi)" stroke-width="2"/>
+    <g id="yakinOk"><path d="M0,-19 L-8,8 L0,3 L8,8 Z" fill="var(--yazi)"/></g>
+  </svg>
+  <div class="bos">
+    <div class="etiket">En yakın direk</div>
+    <div class="ad" id="yakinAd">—</div>
+    <div class="bilgi" id="yakinBilgi"></div>
+  </div>
+  <button id="yakinSec">Seç</button>
+</div>
+
+<div class="alt">
+  <span id="hassas"></span>
+  <a id="harita" href="#" target="_blank" rel="noopener" style="visibility:hidden">Google Maps ↗</a>
+</div>
+
+<div id="veriYok">
+  <h1>Direk listesi yok</h1>
+  <p>Telegram'da bota <b>/pusula</b> yazın ve gelen linki açın. İlk açılıştan sonra bu sayfa listeyi hatırlar ve internetsiz de çalışır.</p>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const YON = ["kuzey","kuzeydoğu","doğu","güneydoğu","güney","güneybatı","batı","kuzeybatı"];
+const VARDI_M = 15;
+
+// ---- direk listesi: linkin # kısmından gelir (sunucuya gitmez), telefonda saklanır
+function oku() {
+  const h = location.hash.match(/[#&]d=([^&]*)/);
+  if (h) {
+    try {
+      const pts = decodeURIComponent(h[1]).split(";").filter(Boolean).map(s => {
+        const [ad, la, lo] = s.split(",");
+        return {ad, lat: 40 + (+la) / 1e5, lon: 26 + (+lo) / 1e5};
+      });
+      if (pts.length && pts.every(p => isFinite(p.lat) && isFinite(p.lon))) {
+        try { localStorage.setItem("saros_direkler", JSON.stringify(pts)); } catch (e) {}
+        history.replaceState(null, "", location.pathname + location.search);
+        return pts;
+      }
+    } catch (e) {}
+  }
+  try { return JSON.parse(localStorage.getItem("saros_direkler")) || []; } catch (e) { return []; }
+}
+const DIREK = oku();
+// sayfa açıkken yeni link gelirse listeyi yeniden oku
+addEventListener("hashchange", () => { if (/[#&]d=/.test(location.hash)) location.reload(); });
+if (!DIREK.length) document.body.classList.add("veriyok");
+
+// ---- direk arama: "12" + seri, "b12", "83", "86", PORTAL
+const norm = s => s.toLowerCase().replace(/ı/g, "i").replace(/[\s.\-_/]/g, "");
+let seri = "A";
+try { seri = localStorage.getItem("saros_seri") || "A"; } catch (e) {}
+function bul(q) {
+  q = norm(q);
+  if (!q) return null;
+  let s = seri === "P" ? "A" : seri;
+  const m = q.match(/^([ab])?(.*?)([ab])?$/);
+  if (m[1] || m[3]) { s = (m[1] || m[3]).toUpperCase(); q = m[2]; }
+  if (!q) return null;
+  if (q === "p" || q.startsWith("port")) return DIREK.find(p => p.ad === s + "-PORTAL");
+  const tam = DIREK.filter(p => [norm(p.ad), norm(p.ad.replace(/^[AB]-/, ""))].includes(q)
+    || norm(p.ad).endsWith("d" + q) || norm(p.ad).endsWith("d" + q + s.toLowerCase()));
+  return tam.find(p => p.ad.startsWith(s + "-")) || tam.find(p => p.ad.endsWith("/" + s)) || tam[0] || null;
+}
+
+// ---- geometri
+const R = Math.PI / 180;
+function mesafe(a, b) {
+  const h = Math.sin((b.lat - a.lat) * R / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin((b.lon - a.lon) * R / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+function kerteriz(a, b) {
+  const y = Math.sin((b.lon - a.lon) * R) * Math.cos(b.lat * R);
+  const x = Math.cos(a.lat * R) * Math.sin(b.lat * R) - Math.sin(a.lat * R) * Math.cos(b.lat * R) * Math.cos((b.lon - a.lon) * R);
+  return (Math.atan2(y, x) / R + 360) % 360;
+}
+const yonAdi = b => YON[Math.round(b / 45) % 8];
+const mYaz = m => m < 1000 ? Math.round(m / (m < 100 ? 1 : 5)) * (m < 100 ? 1 : 5) + " m" : (m / 1000).toFixed(2).replace(".", ",") + " km";
+
+// ---- durum
+let konum = null, baslik = null, hedef = null, sonYon = 0;
+
+// kadran çizikleri
+(() => {
+  let s = "";
+  for (let a = 0; a < 360; a += 10) {
+    const uzun = a % 30 === 0, r1 = uzun ? 84 : 88;
+    const x1 = Math.sin(a * R) * r1, y1 = -Math.cos(a * R) * r1, x2 = Math.sin(a * R) * 94, y2 = -Math.cos(a * R) * 94;
+    s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--soluk)" stroke-width="${uzun ? 2 : 1}"/>`;
+  }
+  $("cizikler").innerHTML = s;
+})();
+
+function seriGoster() {
+  for (const [id, v] of [["sA", "A"], ["sB", "B"], ["sP", "P"]]) $(id).setAttribute("aria-pressed", seri === v);
+}
+function hedefSec(p) {
+  hedef = p || null;
+  if (p) {
+    try { localStorage.setItem("saros_hedef", p.ad); } catch (e) {}
+    $("harita").href = `https://www.google.com/maps/dir/?api=1&destination=${p.lat.toFixed(6)},${p.lon.toFixed(6)}&travelmode=walking`;
+  }
+  $("harita").style.visibility = p ? "visible" : "hidden";
+  ciz();
+}
+function girisDegisti() {
+  const v = $("giris").value.trim();
+  if (seri === "P" && !v) return hedefSec(DIREK.find(p => p.ad === "A-PORTAL"));
+  hedefSec(v ? bul(v) : null);
+  if (v && !hedef) $("hedefAd").textContent = "Böyle direk yok";
+}
+$("giris").addEventListener("input", girisDegisti);
+$("giris").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+for (const [id, v] of [["sA", "A"], ["sB", "B"], ["sP", "P"]]) $(id).addEventListener("click", () => {
+  seri = v;
+  try { localStorage.setItem("saros_seri", v); } catch (e) {}
+  seriGoster();
+  if (v === "P") { $("giris").value = ""; hedefSec(DIREK.find(p => p.ad === "A-PORTAL")); }
+  else girisDegisti();
+});
+$("yakinSec").addEventListener("click", () => {
+  const y = enYakin();
+  if (!y) return;
+  const p = y.p, m = p.ad.match(/^([AB])-(\d+)$/), mm = p.ad.match(/(\d+)(?:\/([AB]))?$/);
+  if (p.ad.endsWith("PORTAL")) { seri = "P"; $("giris").value = ""; }
+  else if (m) { seri = m[1]; $("giris").value = m[2]; }
+  else { seri = mm[2] || (+mm[1] >= 87 ? "B" : "A"); $("giris").value = mm[1]; }
+  try { localStorage.setItem("saros_seri", seri); } catch (e) {}
+  seriGoster();
+  hedefSec(p);
+});
+
+function enYakin() {
+  if (!konum || !DIREK.length) return null;
+  let en = null;
+  for (const p of DIREK) { const d = mesafe(konum, p); if (!en || d < en.d) en = {p, d}; }
+  return en;
+}
+
+function ciz() {
+  const h = baslik ?? 0;
+  $("kadran").style.transform = `rotate(${-h}deg)`;
+  // hedef
+  $("hedefAd").textContent = hedef ? hedef.ad : "";
+  document.body.classList.remove("vardi");
+  if (hedef && konum) {
+    const d = mesafe(konum, hedef), b = kerteriz(konum, hedef);
+    // en kısa yoldan dönsün diye açıyı biriktir
+    let hedefAci = b - h, fark = ((hedefAci - sonYon) % 360 + 540) % 360 - 180;
+    sonYon += fark;
+    $("ok").style.display = "";
+    $("ok").style.transform = `rotate(${sonYon}deg)`;
+    $("uzak").textContent = mYaz(d);
+    if (d <= VARDI_M) { document.body.classList.add("vardi"); $("yonYazi").textContent = "✅ Vardınız"; }
+    else $("yonYazi").textContent = yonAdi(b) + " · " + Math.round(b) + "°";
+  } else {
+    $("ok").style.display = "none";
+    $("uzak").textContent = hedef ? "…" : "";
+    $("yonYazi").textContent = hedef ? "konum bekleniyor" : (DIREK.length ? "direk no yazın" : "");
+  }
+  // en yakın
+  const y = enYakin();
+  if (y) {
+    const b = kerteriz(konum, y.p);
+    $("yakinAd").textContent = y.p.ad;
+    $("yakinBilgi").textContent = (y.d <= 50 ? "Yanındasınız · " : "") + mYaz(y.d) + " · " + yonAdi(b);
+    $("yakinOk").setAttribute("transform", `rotate(${(b - h).toFixed(1)})`);
+  }
+  // uyarılar
+  let u = "";
+  if (baslik === null) u = konum ? "Pusula yok: kırmızı K harfini kuzeye göre okuyun." : "";
+  else if (konum && konum.acc > 25 && hedef && mesafe(konum, hedef) < konum.acc * 1.5) u = "GPS kaba (±" + Math.round(konum.acc) + " m): yön yakında şaşabilir.";
+  $("uyari").textContent = u;
+}
+
+// ---- konum
+function konumBaslat() {
+  if (!("geolocation" in navigator)) { $("gps").textContent = "Bu tarayıcı konum vermiyor"; return; }
+  navigator.geolocation.watchPosition(p => {
+    konum = {lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy};
+    $("gps").textContent = "GPS ±" + Math.round(p.coords.accuracy) + " m";
+    $("hassas").textContent = konum.lat.toFixed(5) + ", " + konum.lon.toFixed(5);
+    // pusula sensörü yoksa yürürken hareket yönünü kullan
+    if (!sensor && p.coords.heading != null && !isNaN(p.coords.heading) && (p.coords.speed || 0) > 0.8) baslik = p.coords.heading;
+    ciz();
+  }, e => {
+    $("gps").textContent = e.code === 1 ? "Konum izni verilmedi" : "Konum alınamadı";
+    if (e.code === 1) $("uyari").textContent = "Telefon ayarlarından bu siteye konum izni verin.";
+  }, {enableHighAccuracy: true, maximumAge: 2000, timeout: 30000});
+}
+
+// ---- pusula sensörü
+let sensor = false, sx = 0, sy = 0;
+function yonGeldi(deg) {
+  if (deg == null || isNaN(deg)) return;
+  deg = (deg + ((screen.orientation && screen.orientation.angle) || window.orientation || 0) + 360) % 360;
+  // titremeyi yumuşat (birim çember üzerinde ortalama)
+  sx = sx * 0.75 + Math.sin(deg * R) * 0.25; sy = sy * 0.75 + Math.cos(deg * R) * 0.25;
+  baslik = (Math.atan2(sx, sy) / R + 360) % 360;
+  if (!sensor) { sensor = true; $("baslat").style.display = "none"; }
+  ciz();
+}
+function pusulaBaslat() {
+  const ios = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
+  if (ios) {
+    DeviceOrientationEvent.requestPermission().then(s => {
+      if (s === "granted") addEventListener("deviceorientation", e => yonGeldi(e.webkitCompassHeading), true);
+      else $("uyari").textContent = "Pusula izni verilmedi. Safari'yi kapatıp sayfayı yeniden açın.";
+    }).catch(() => {});
+  } else if ("ondeviceorientationabsolute" in window) {
+    addEventListener("deviceorientationabsolute", e => { if (e.alpha != null) yonGeldi(360 - e.alpha); }, true);
+  } else {
+    addEventListener("deviceorientation", e => {
+      if (e.webkitCompassHeading != null) yonGeldi(e.webkitCompassHeading);
+      else if (e.absolute && e.alpha != null) yonGeldi(360 - e.alpha);
+    }, true);
+  }
+}
+async function ekranAcikKalsin() {
+  try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+$("baslat").addEventListener("click", () => { pusulaBaslat(); ekranAcikKalsin(); if (!konum) konumBaslat(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && sensor) ekranAcikKalsin(); });
+
+// ---- açılış
+if (DIREK.length) {
+  seriGoster();
+  let son = null;
+  try { son = localStorage.getItem("saros_hedef"); } catch (e) {}
+  const p = son && DIREK.find(x => x.ad === son);
+  if (p) {
+    const m = p.ad.match(/(\d+)(?:\/[AB])?$/);
+    $("giris").value = p.ad.endsWith("PORTAL") ? "" : m ? m[1] : "";
+    hedefSec(p);
+  }
+  konumBaslat();
+  // Android'de izin istemeden çalışır; iOS düğmeye basılmasını bekler
+  if (typeof DeviceOrientationEvent === "undefined" || typeof DeviceOrientationEvent.requestPermission !== "function") pusulaBaslat();
+  ciz();
+}
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
